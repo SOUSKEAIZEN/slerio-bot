@@ -1,0 +1,10 @@
+# Ignore the environment variables file containing secret keys
+.env
+
+# Ignore the virtual environment sandbox folder
+venv/
+__pycache__/
+*.pyc
+
+# Ignore local log files
+*.log
