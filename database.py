@@ -18,15 +18,12 @@ def get_db_connection():
     user = os.getenv("DB_USER")
     password = os.getenv("DB_PASSWORD")
     
-    # Pre-connection validation log
     if not all([host, port, database, user, password]):
         logger.error("Database Connection Failure: One or more database environment variables are missing!")
         raise ValueError("Missing database credentials in .env file.")
         
     try:
-        logger.info(u"Database Connection: Attempting secure connection to host: %s on port: %s...", host, port)
-        
-        # Establishing connection with SSL requirement enforced by Aiven
+        logger.info("Database Connection: Attempting secure connection to host: %s on port: %s...", host, port)
         connection = psycopg2.connect(
             host=host,
             port=port,
@@ -35,19 +32,16 @@ def get_db_connection():
             password=password,
             sslmode="require"
         )
-        
         logger.info("Database Connection: Handshake successful! Connection established.")
         return connection
-        
     except Exception as e:
-        logger.error(u"Database Connection Failure: Unable to connect to Aiven cloud instance. Error: %s", str(e), exc_info=True)
+        logger.error("Database Connection Failure: Unable to connect to Aiven cloud instance. Error: %s", str(e), exc_info=True)
         raise
 
 def initialize_database():
     """Creates the necessary database tables if they do not exist."""
     logger.info("Database Initialization: Starting structural table creation sequence...")
     
-    # SQL Queries to build out the tracking system architecture
     create_users_table = """
     CREATE TABLE IF NOT EXISTS users (
         telegram_id BIGINT PRIMARY KEY,
@@ -80,47 +74,92 @@ def initialize_database():
     
     connection = None
     cursor = None
-    
     try:
         connection = get_db_connection()
         cursor = connection.cursor()
         
-        # Step 1: Create Users Table
         logger.info("Database Initialization: Executing query for 'users' table...")
         cursor.execute(create_users_table)
-        logger.info("Database Initialization: 'users' table verified/created successfully.")
         
-        # Step 2: Create Products Table
         logger.info("Database Initialization: Executing query for 'products' table...")
         cursor.execute(create_products_table)
-        logger.info("Database Initialization: 'products' table verified/created successfully.")
         
-        # Step 3: Create Price History Table
         logger.info("Database Initialization: Executing query for 'price_history' table...")
         cursor.execute(create_price_history_table)
-        logger.info("Database Initialization: 'price_history' table verified/created successfully.")
         
-        # Commit transaction to make changes permanent in the cloud
-        logger.info("Database Initialization: Committing changes to cloud instance...")
         connection.commit()
         logger.info("Database Initialization: All core tables successfully deployed and verified.")
-        
     except Exception as e:
         if connection:
-            logger.warning("Database Initialization Warning: Exception encountered. Rolling back changes...")
             connection.rollback()
-        logger.error(u"Database Initialization Failure: Structural setup aborted due to error: %s", str(e), exc_info=True)
+        logger.error("Database Initialization Failure: Structural setup aborted due to error: %s", str(e), exc_info=True)
         raise
-        
     finally:
         if cursor:
             cursor.close()
-            logger.info("Database Initialization: Cursor channel closed safely.")
         if connection:
             connection.close()
-            logger.info("Database Initialization: Connection channel closed safely.")
+
+def add_product(user_id: int, url: str, name: str, target_price: float, store_type: str) -> bool:
+    """Inserts a newly tracked product into the cloud products table."""
+    logger.info("Database Operation: Attempting to save product tracking profile for User: %s...", user_id)
+    
+    insert_query = """
+    INSERT INTO products (user_id, product_url, product_name, target_price, store_type)
+    VALUES (%s, %s, %s, %s, %s);
+    """
+    
+    connection = None
+    cursor = None
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        
+        cursor.execute(insert_query, (user_id, url, name, target_price, store_type))
+        connection.commit()
+        logger.info("Database Operation Success: Product '%s' cleanly registered for tracking.", name)
+        return True
+    except Exception as e:
+        if connection:
+            connection.rollback()
+        logger.error("Database Operation Failure: Could not add product. Error: %s", str(e), exc_info=True)
+        return False
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
+
+def get_tracked_products(user_id: int) -> list:
+    """Retrieves all tracked items registered by a specific Telegram user."""
+    logger.info("Database Query: Fetching all active tracked products for User: %s...", user_id)
+    
+    select_query = """
+    SELECT id, product_name, target_price, last_checked_price, store_type, product_url 
+    FROM products 
+    WHERE user_id = %s 
+    ORDER BY created_at DESC;
+    """
+    
+    connection = None
+    cursor = None
+    try:
+        connection = get_db_connection()
+        cursor = connection.cursor()
+        
+        cursor.execute(select_query, (user_id,))
+        rows = cursor.fetchall()
+        logger.info("Database Query Success: Retrieved %s tracked items.", len(rows))
+        return rows
+    except Exception as e:
+        logger.error("Database Query Failure: Unable to fetch items. Error: %s", str(e), exc_info=True)
+        return []
+    finally:
+        if cursor:
+            cursor.close()
+        if connection:
+            connection.close()
 
 if __name__ == "__main__":
-    # Allows direct testing of database connection by running 'python database.py'
-    print("Running standalone database initialization test...")
+    print("Running standalone database function verification test...")
     initialize_database()
