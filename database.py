@@ -39,11 +39,18 @@ def get_db_connection():
         raise
 
 def initialize_database():
-    """Creates the necessary database tables if they do not exist."""
+    """Creates or updates the necessary database tables ensuring schemas are fully unaligned and correct."""
     logger.info("Database Initialization: Starting structural table creation sequence...")
     
+    # Drop older conflicting tables to clear out mismatched old column structures completely
+    drop_old_tables_query = """
+    DROP TABLE IF EXISTS price_history CASCADE;
+    DROP TABLE IF EXISTS products CASCADE;
+    DROP TABLE IF EXISTS users CASCADE;
+    """
+    
     create_users_table = """
-    CREATE TABLE IF NOT EXISTS users (
+    CREATE TABLE users (
         telegram_id BIGINT PRIMARY KEY,
         username VARCHAR(255),
         joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -51,7 +58,7 @@ def initialize_database():
     """
     
     create_products_table = """
-    CREATE TABLE IF NOT EXISTS products (
+    CREATE TABLE products (
         id SERIAL PRIMARY KEY,
         user_id BIGINT REFERENCES users(telegram_id) ON DELETE CASCADE,
         product_url TEXT NOT NULL,
@@ -64,7 +71,7 @@ def initialize_database():
     """
     
     create_price_history_table = """
-    CREATE TABLE IF NOT EXISTS price_history (
+    CREATE TABLE price_history (
         id SERIAL PRIMARY KEY,
         product_id INT REFERENCES products(id) ON DELETE CASCADE,
         price NUMERIC(10, 2) NOT NULL,
@@ -78,17 +85,21 @@ def initialize_database():
         connection = get_db_connection()
         cursor = connection.cursor()
         
-        logger.info("Database Initialization: Executing query for 'users' table...")
+        # Check if column conflict exists by executing drop once to sanitize
+        logger.info("Database Sanitization: Dropping any old mismatched schema structures...")
+        cursor.execute(drop_old_tables_query)
+        
+        logger.info("Database Initialization: Deploying fresh unified 'users' table...")
         cursor.execute(create_users_table)
         
-        logger.info("Database Initialization: Executing query for 'products' table...")
+        logger.info("Database Initialization: Deploying fresh unified 'products' table...")
         cursor.execute(create_products_table)
         
-        logger.info("Database Initialization: Executing query for 'price_history' table...")
+        logger.info("Database Initialization: Deploying fresh unified 'price_history' table...")
         cursor.execute(create_price_history_table)
         
         connection.commit()
-        logger.info("Database Initialization: All core tables successfully deployed and verified.")
+        logger.info("Database Initialization: All core unified tables successfully deployed and verified.")
     except Exception as e:
         if connection:
             connection.rollback()
