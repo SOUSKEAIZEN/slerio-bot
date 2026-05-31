@@ -15,6 +15,9 @@ from logger import logger
 from database import initialize_database, get_db_connection, add_product
 from scraper import clean_and_identify_url
 
+# Import the keep-alive background web server module
+from keep_alive import keep_alive
+
 # Load environment variables from .env file
 load_dotenv()
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
@@ -156,6 +159,10 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def main():
     logger.info("Starting SLERO Bot execution sequence...")
+    
+    # Initialize the background Keep-Alive Flask server thread
+    logger.info("Deployment Safeguard: Activating Keep-Alive background server pipeline...")
+    keep_alive()
     
     if not BOT_TOKEN:
         logger.error("CRITICAL FAILURE: TELEGRAM_BOT_TOKEN not found in environment variables. Execution stopped.")
