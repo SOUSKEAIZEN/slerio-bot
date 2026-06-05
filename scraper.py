@@ -155,4 +155,4 @@ if __name__ == "__main__":
     html_data = fetch_page_html(test_url)
     if html_data:
         extracted = extract_price_and_name(html_data, "amazon")
-        print(f"Extraction Result: {extracted}"
+        print(f"Extraction Result: {extracted}")
